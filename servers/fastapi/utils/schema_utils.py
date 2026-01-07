@@ -308,6 +308,77 @@ def remove_titles_from_schema(schema: dict) -> dict[str, Any]:
     return _strip_titles(deepcopy(schema))
 
 
+def limit_schema_depth(schema: dict, max_depth: int = 5) -> dict[str, Any]:
+    """
+    Limit the nesting depth of a JSON schema to prevent API errors.
+    
+    Deeply nested schemas are simplified by converting nested objects/arrays
+    beyond max_depth to simple type definitions with additionalProperties.
+    
+    Args:
+        schema: JSON schema dictionary to limit
+        max_depth: Maximum allowed nesting depth (default: 5)
+    
+    Returns:
+        Schema with limited nesting depth
+    """
+    
+    def _limit_depth(node: Any, current_depth: int) -> Any:
+        # If we've exceeded max depth, simplify the schema
+        if current_depth >= max_depth:
+            if isinstance(node, dict):
+                node_type = node.get("type")
+                if node_type == "object":
+                    return {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": node.get("description", "")
+                    }
+                elif node_type == "array":
+                    return {
+                        "type": "array",
+                        "items": {"type": "object", "additionalProperties": True},
+                        "description": node.get("description", "")
+                    }
+                # For other types, keep basic structure
+                return {
+                    "type": node_type or "object",
+                    "description": node.get("description", "")
+                }
+            return node
+        
+        if isinstance(node, dict):
+            limited: dict[str, Any] = {}
+            for key, value in node.items():
+                if key == "properties" and isinstance(value, dict):
+                    # Recurse into properties with incremented depth
+                    limited[key] = {
+                        prop_name: _limit_depth(prop_schema, current_depth + 1)
+                        for prop_name, prop_schema in value.items()
+                    }
+                elif key == "items" and isinstance(value, dict):
+                    # Recurse into array items with incremented depth
+                    limited[key] = _limit_depth(value, current_depth + 1)
+                elif key in ("allOf", "anyOf", "oneOf") and isinstance(value, list):
+                    # Recurse into schema combinators
+                    limited[key] = [
+                        _limit_depth(item, current_depth + 1) for item in value
+                    ]
+                elif key == "additionalProperties" and isinstance(value, dict):
+                    # Recurse into additionalProperties schema
+                    limited[key] = _limit_depth(value, current_depth + 1)
+                else:
+                    # Copy other properties as-is
+                    limited[key] = value
+            return limited
+        elif isinstance(node, list):
+            return [_limit_depth(item, current_depth) for item in node]
+        return node
+    
+    return _limit_depth(deepcopy(schema), 0)
+
+
+
 # ? Not used
 def generate_constraint_sentences(schema: dict) -> str:
     """

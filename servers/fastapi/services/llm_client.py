@@ -59,6 +59,7 @@ from utils.schema_utils import (
     ensure_strict_json_schema,
     flatten_json_schema,
     remove_titles_from_schema,
+    limit_schema_depth,
 )
 
 
@@ -570,6 +571,9 @@ class LLMClient:
     ) -> dict | None:
         client: genai.Client = self._client
 
+        # Limit schema depth to prevent Google API nesting depth errors
+        limited_response_format = limit_schema_depth(response_format, max_depth=5)
+
         google_tools = None
         if tools:
             google_tools = [GoogleTool(function_declarations=[tool]) for tool in tools]
@@ -580,7 +584,7 @@ class LLMClient:
                             "name": "ResponseSchema",
                             "description": "Provide response to the user",
                             "parameters": remove_titles_from_schema(
-                                flatten_json_schema(response_format)
+                                flatten_json_schema(limited_response_format)
                             ),
                         }
                     ]
@@ -604,7 +608,7 @@ class LLMClient:
                 ),
                 system_instruction=self._get_system_prompt(messages),
                 response_mime_type="application/json" if not tools else None,
-                response_json_schema=response_format if not tools else None,
+                response_json_schema=limited_response_format if not tools else None,
                 max_output_tokens=max_tokens,
             ),
         )
@@ -1291,6 +1295,9 @@ class LLMClient:
 
         client: genai.Client = self._client
 
+        # Limit schema depth to prevent Google API nesting depth errors
+        limited_response_format = limit_schema_depth(response_format, max_depth=5)
+
         google_tools = None
         if tools:
             google_tools = [GoogleTool(function_declarations=[tool]) for tool in tools]
@@ -1301,7 +1308,7 @@ class LLMClient:
                             "name": "ResponseSchema",
                             "description": "Provide response to the user",
                             "parameters": remove_titles_from_schema(
-                                flatten_json_schema(response_format)
+                                flatten_json_schema(limited_response_format)
                             ),
                         }
                     ]
@@ -1329,7 +1336,7 @@ class LLMClient:
                 ),
                 system_instruction=self._get_system_prompt(messages),
                 response_mime_type="application/json" if not tools else None,
-                response_json_schema=response_format if not tools else None,
+                response_json_schema=limited_response_format if not tools else None,
                 max_output_tokens=max_tokens,
             ),
         ):
