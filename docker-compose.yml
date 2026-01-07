@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     ports:
       # You can replace 5000 with any other port number of your choice to run Presenton on a different port number.
       - "4000:80"
